@@ -3,8 +3,7 @@
 <html lang="fa" dir="rtl">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport"
-        content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Sell Token Wallet</title>
 
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
@@ -52,20 +51,38 @@
       color: #b9d8ff;
     }
 
+    .balance-box {
+      background: #0d192b;
+      border: 1px solid #2b4b68;
+      border-radius: 16px;
+      padding: 20px;
+      margin: 22px 0;
+    }
+
+    .balance {
+      color: #42c9ff;
+      font-size: 28px;
+      font-weight: bold;
+      direction: ltr;
+    }
+
     button {
       border: 0;
       border-radius: 12px;
-      padding: 13px 20px;
-      background: #e05252;
+      padding: 13px 18px;
       color: white;
       font-size: 15px;
       cursor: pointer;
+      margin: 6px;
     }
 
     button:disabled {
       opacity: 0.5;
       cursor: not-allowed;
     }
+
+    #refresh { background: #008fd5; }
+    #disconnect { background: #e05252; }
 
     .note {
       color: #aebdd0;
@@ -77,8 +94,7 @@
 
 <body>
   <main class="card">
-    <img class="logo" src="./icon.png"
-         alt="Sell Token">
+    <img class="logo" src="./icon.png" alt="Sell Token">
 
     <h1>Sell Token</h1>
     <p>اتصال امن کیف پول TON</p>
@@ -88,12 +104,23 @@
     <p id="status">کیف پول متصل نیست</p>
     <p id="address"></p>
 
+    <section class="balance-box">
+      <p>موجودی کیف پول در شبکه اصلی</p>
+      <div class="balance" id="balance">— TON</div>
+      <p class="note" id="balance-status">
+        برای نمایش موجودی، کیف پول را متصل کنید.
+      </p>
+      <button id="refresh" disabled>
+        بروزرسانی موجودی
+      </button>
+    </section>
+
     <button id="disconnect" disabled>
       قطع اتصال کیف پول
     </button>
 
     <p class="note">
-      اتصال کیف پول اجازه برداشت دارایی نمی‌دهد.
+      موجودی از بلاکچین خوانده می‌شود.
       هیچ تراکنشی در این صفحه انجام نمی‌شود.
     </p>
   </main>
@@ -101,16 +128,89 @@
   <script>
     const statusEl = document.getElementById("status");
     const addressEl = document.getElementById("address");
+    const balanceEl = document.getElementById("balance");
+    const balanceStatusEl =
+      document.getElementById("balance-status");
+    const refreshBtn = document.getElementById("refresh");
     const disconnectBtn =
       document.getElementById("disconnect");
+
+    let connectedAddress = null;
+    let requestNumber = 0;
 
     if (window.Telegram?.WebApp) {
       window.Telegram.WebApp.ready();
     }
 
+    function formatTon(nanoString) {
+      const nano = BigInt(nanoString);
+      const whole = nano / 1000000000n;
+      const fraction = (nano % 1000000000n)
+        .toString()
+        .padStart(9, "0")
+        .replace(/0+$/, "");
+
+      return whole.toString() +
+        (fraction ? "." + fraction : "");
+    }
+
+    async function loadBalance() {
+      if (!connectedAddress) return;
+
+      const address = connectedAddress;
+      const currentRequest = ++requestNumber;
+
+      balanceStatusEl.textContent =
+        "در حال دریافت موجودی...";
+      refreshBtn.disabled = true;
+
+      try {
+        const url =
+          "https://toncenter.com/api/v2/getAddressBalance" +
+          "?address=" + encodeURIComponent(address);
+
+        const response = await fetch(url, {
+          method: "GET",
+          cache: "no-store"
+        });
+
+        if (!response.ok) {
+          throw new Error("HTTP " + response.status);
+        }
+
+        const data = await response.json();
+
+        if (!data.ok || !/^\d+$/.test(String(data.result))) {
+          throw new Error("Invalid balance response");
+        }
+
+        if (currentRequest !== requestNumber ||
+            address !== connectedAddress) return;
+
+        balanceEl.textContent =
+          formatTon(data.result) + " TON";
+
+        balanceStatusEl.textContent =
+          "موجودی از شبکه TON دریافت شد.";
+
+      } catch (error) {
+        if (currentRequest !== requestNumber ||
+            address !== connectedAddress) return;
+
+        balanceEl.textContent = "— TON";
+        balanceStatusEl.textContent =
+          "دریافت موجودی ناموفق بود. دوباره تلاش کنید.";
+        console.error(error);
+      } finally {
+        if (currentRequest === requestNumber) {
+          refreshBtn.disabled = !connectedAddress;
+        }
+      }
+    }
+
     if (!window.TON_CONNECT_UI) {
       statusEl.textContent =
-        "خطا در بارگذاری TonConnect. صفحه را دوباره باز کنید.";
+        "خطا در بارگذاری TonConnect.";
     } else {
       const tonConnectUI =
         new TON_CONNECT_UI.TonConnectUI({
@@ -120,18 +220,36 @@
         });
 
       tonConnectUI.onStatusChange(wallet => {
+        requestNumber++;
+
         if (wallet) {
+          connectedAddress = wallet.account.address;
+
           statusEl.textContent = "کیف پول متصل شد";
-          addressEl.textContent =
-            wallet.account.address;
+          addressEl.textContent = connectedAddress;
+
           disconnectBtn.disabled = false;
+          refreshBtn.disabled = false;
+
+          balanceEl.textContent = "— TON";
+          loadBalance();
+
         } else {
+          connectedAddress = null;
+
           statusEl.textContent =
             "کیف پول متصل نیست";
           addressEl.textContent = "";
+          balanceEl.textContent = "— TON";
+          balanceStatusEl.textContent =
+            "برای نمایش موجودی، کیف پول را متصل کنید.";
+
           disconnectBtn.disabled = true;
+          refreshBtn.disabled = true;
         }
       });
+
+      refreshBtn.addEventListener("click", loadBalance);
 
       disconnectBtn.addEventListener(
         "click", async () => {
