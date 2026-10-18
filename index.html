@@ -3,11 +3,147 @@
 <html lang="fa" dir="rtl">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Sell Token</title>
+  <meta name="viewport"
+        content="width=device-width, initial-scale=1">
+  <title>Sell Token Wallet</title>
+
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <script src="https://unpkg.com/@tonconnect/ui@5.0.0/dist/tonconnect-ui.min.js"></script>
+
+  <style>
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      padding: 24px 16px;
+      background: #0b1220;
+      color: white;
+      font-family: Arial, sans-serif;
+      text-align: center;
+    }
+
+    .card {
+      background: #182438;
+      border-radius: 20px;
+      padding: 24px 16px;
+      max-width: 440px;
+      margin: 20px auto;
+    }
+
+    .logo {
+      width: 90px;
+      height: 90px;
+      border-radius: 22px;
+    }
+
+    h1 { color: #39baff; }
+
+    #ton-connect {
+      display: flex;
+      justify-content: center;
+      margin: 24px 0;
+      direction: ltr;
+    }
+
+    #address {
+      overflow-wrap: anywhere;
+      direction: ltr;
+      font-size: 13px;
+      color: #b9d8ff;
+    }
+
+    button {
+      border: 0;
+      border-radius: 12px;
+      padding: 13px 20px;
+      background: #e05252;
+      color: white;
+      font-size: 15px;
+      cursor: pointer;
+    }
+
+    button:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    .note {
+      color: #aebdd0;
+      font-size: 13px;
+      line-height: 1.9;
+    }
+  </style>
 </head>
+
 <body>
-  <h2>به Sell Token خوش آمدید</h2>
-  <p>برنامه کیف پول TON در حال ساخت است.</p>
+  <main class="card">
+    <img class="logo" src="./icon.png"
+         alt="Sell Token">
+
+    <h1>Sell Token</h1>
+    <p>اتصال امن کیف پول TON</p>
+
+    <div id="ton-connect"></div>
+
+    <p id="status">کیف پول متصل نیست</p>
+    <p id="address"></p>
+
+    <button id="disconnect" disabled>
+      قطع اتصال کیف پول
+    </button>
+
+    <p class="note">
+      اتصال کیف پول اجازه برداشت دارایی نمی‌دهد.
+      هیچ تراکنشی در این صفحه انجام نمی‌شود.
+    </p>
+  </main>
+
+  <script>
+    const statusEl = document.getElementById("status");
+    const addressEl = document.getElementById("address");
+    const disconnectBtn =
+      document.getElementById("disconnect");
+
+    if (window.Telegram?.WebApp) {
+      window.Telegram.WebApp.ready();
+    }
+
+    if (!window.TON_CONNECT_UI) {
+      statusEl.textContent =
+        "خطا در بارگذاری TonConnect. صفحه را دوباره باز کنید.";
+    } else {
+      const tonConnectUI =
+        new TON_CONNECT_UI.TonConnectUI({
+          manifestUrl:
+            "https://wazir403090-ops.github.io/sell-token-miniapp/tonconnect-manifest.json",
+          buttonRootId: "ton-connect"
+        });
+
+      tonConnectUI.onStatusChange(wallet => {
+        if (wallet) {
+          statusEl.textContent = "کیف پول متصل شد";
+          addressEl.textContent =
+            wallet.account.address;
+          disconnectBtn.disabled = false;
+        } else {
+          statusEl.textContent =
+            "کیف پول متصل نیست";
+          addressEl.textContent = "";
+          disconnectBtn.disabled = true;
+        }
+      });
+
+      disconnectBtn.addEventListener(
+        "click", async () => {
+          try {
+            await tonConnectUI.disconnect();
+          } catch (error) {
+            statusEl.textContent =
+              "قطع اتصال انجام نشد. دوباره تلاش کنید.";
+          }
+        }
+      );
+    }
+  </script>
 </body>
 </html>
